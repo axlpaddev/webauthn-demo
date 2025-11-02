@@ -7,10 +7,11 @@ const {
   generateAuthenticationOptions,
   verifyRegistrationResponse,
   verifyAuthenticationResponse,
+  isoUint8Array,
 } = require('@simplewebauthn/server');
-
-// ✅ CORREGIDO: importar helpers desde la ruta específica
-const { isoUint8Array } = require('@simplewebauthn/server/helpers');
+const { isoUint8Array: isoHelpers } = require('@simplewebauthn/server/helpers');
+const path = require('path');
+const fs = require('fs');
 
 const app = express();
 
@@ -18,20 +19,17 @@ const FRONTEND_ORIGIN = 'https://axltest.lat';
 app.use(cors({ origin: FRONTEND_ORIGIN }));
 app.use(express.json({ limit: '10mb' }));
 
+// === Rutas de API (WebAuthn) ===
 const users = new Map();
 
-// Helper: responder con error
 const sendError = (res, status, message) => {
   console.warn(`⚠️ Error ${status}:`, message);
   return res.status(status).json({ error: message });
 };
 
-// 1. Registro: generar desafío
 app.post('/generate-registration-options', (req, res) => {
   try {
     const { email } = req.body;
-    console.log('📩 Registro solicitado para:', email);
-
     if (!email || typeof email !== 'string') {
       return sendError(res, 400, 'Email válido es requerido');
     }
@@ -40,7 +38,7 @@ app.post('/generate-registration-options', (req, res) => {
     const options = generateRegistrationOptions({
       rpName: 'Mi App Web',
       rpID: 'axltest.lat',
-      userID: isoUint8Array.fromUTF8String(userId), // ✅ CORREGIDO: string → Uint8Array
+      userID: isoHelpers.fromUTF8String(userId),
       userName: email,
       timeout: 60000,
       attestationType: 'none',
@@ -64,7 +62,6 @@ app.post('/generate-registration-options', (req, res) => {
       users.get(email).currentChallenge = options.challenge;
     }
 
-    console.log('✅ Opciones generadas para:', email);
     res.json(options);
   } catch (err) {
     console.error('💥 Error en /generate-registration-options:', err);
@@ -72,21 +69,14 @@ app.post('/generate-registration-options', (req, res) => {
   }
 });
 
-// 2. Verificar registro
 app.post('/verify-registration', async (req, res) => {
   try {
     const { email, response } = req.body;
-    if (!email || !response) {
-      return sendError(res, 400, 'Email y respuesta son requeridos');
-    }
-
+    if (!email || !response) return sendError(res, 400, 'Faltan datos');
     const user = users.get(email);
     if (!user) return sendError(res, 404, 'Usuario no encontrado');
-
     const expectedChallenge = user.currentChallenge;
-    if (!expectedChallenge) {
-      return sendError(res, 400, 'No hay desafío pendiente para este usuario');
-    }
+    if (!expectedChallenge) return sendError(res, 400, 'No hay desafío');
 
     const verification = await verifyRegistrationResponse({
       response,
@@ -104,10 +94,9 @@ app.post('/verify-registration', async (req, res) => {
         counter,
       });
       delete user.currentChallenge;
-      console.log('✅ Registro verificado para:', email);
-      return res.json({ verified: true });
+      res.json({ verified: true });
     } else {
-      return sendError(res, 400, 'Verificación fallida');
+      sendError(res, 400, 'Verificación fallida');
     }
   } catch (err) {
     console.error('💥 Error en /verify-registration:', err);
@@ -115,15 +104,13 @@ app.post('/verify-registration', async (req, res) => {
   }
 });
 
-// 3. Autenticación: generar desafío
 app.post('/generate-authentication-options', (req, res) => {
   try {
     const { email } = req.body;
     if (!email) return sendError(res, 400, 'Email requerido');
-
     const user = users.get(email);
     if (!user || user.devices.length === 0) {
-      return sendError(res, 404, 'Usuario no registrado o sin dispositivos');
+      return sendError(res, 404, 'Usuario no registrado');
     }
 
     const options = generateAuthenticationOptions({
@@ -137,29 +124,21 @@ app.post('/generate-authentication-options', (req, res) => {
     });
 
     user.currentChallenge = options.challenge;
-    console.log('🔑 Desafío de autenticación generado para:', email);
     res.json(options);
   } catch (err) {
     console.error('💥 Error en /generate-authentication-options:', err);
-    sendError(res, 500, 'Error al generar desafío de autenticación');
+    sendError(res, 500, 'Error al generar desafío');
   }
 });
 
-// 4. Verificar autenticación
 app.post('/verify-authentication', async (req, res) => {
   try {
     const { email, response } = req.body;
-    if (!email || !response) {
-      return sendError(res, 400, 'Email y respuesta son requeridos');
-    }
-
+    if (!email || !response) return sendError(res, 400, 'Faltan datos');
     const user = users.get(email);
     if (!user) return sendError(res, 404, 'Usuario no encontrado');
-
     const expectedChallenge = user.currentChallenge;
-    if (!expectedChallenge) {
-      return sendError(res, 400, 'No hay desafío pendiente');
-    }
+    if (!expectedChallenge) return sendError(res, 400, 'No hay desafío');
 
     const device = user.devices.find(d => Buffer.compare(d.credentialID, response.id) === 0);
     if (!device) return sendError(res, 400, 'Dispositivo desconocido');
@@ -180,10 +159,9 @@ app.post('/verify-authentication', async (req, res) => {
     if (verification.verified) {
       device.counter = verification.authenticationInfo.newCounter;
       delete user.currentChallenge;
-      console.log('✅ Autenticación exitosa para:', email);
-      return res.json({ verified: true, user: { email } });
+      res.json({ verified: true, user: { email } });
     } else {
-      return sendError(res, 400, 'Autenticación fallida');
+      sendError(res, 400, 'Autenticación fallida');
     }
   } catch (err) {
     console.error('💥 Error en /verify-authentication:', err);
@@ -191,20 +169,46 @@ app.post('/verify-authentication', async (req, res) => {
   }
 });
 
-// Manejo de rutas no encontradas
-app.use((req, res) => {
-  console.warn('⚠️ Ruta no encontrada:', req.method, req.url);
-  res.status(404).json({ error: 'Ruta no encontrada' });
+// Ruta de salud
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', time: new Date().toISOString() });
 });
 
-// Manejo global de errores
-app.use((err, req, res, next) => {
-  console.error('🔥 Error no controlado:', err);
-  res.status(500).json({ error: 'Error interno del servidor' });
-});
+// === Servir frontend en producción ===
+if (process.env.NODE_ENV === 'production') {
+  const DIST_DIR = path.resolve(__dirname, '..', 'frontend', 'dist');
+  const INDEX_FILE = path.join(DIST_DIR, 'index.html');
 
-const PORT = 8080;
+  console.log('📁 __dirname:', __dirname);
+  console.log('📁 DIST_DIR:', DIST_DIR);
+  console.log('📁 INDEX_FILE:', INDEX_FILE);
+
+  if (fs.existsSync(DIST_DIR)) {
+    console.log('✅ Carpeta dist encontrada. Sirviendo frontend estático.');
+    app.use(express.static(DIST_DIR));
+
+    // Middleware de fallback: sirve index.html para cualquier ruta que no sea API
+    app.use((req, res, next) => {
+      if (req.url.startsWith('/api/')) {
+        return next(); // deja que las rutas API fallen naturalmente
+      }
+      res.sendFile(INDEX_FILE, err => {
+        if (err) {
+          console.error('❌ Error al servir index.html:', err);
+          res.status(500).send('Error interno');
+        }
+      });
+    });
+  } else {
+    console.error('❌ ERROR: Carpeta dist NO encontrada en:', DIST_DIR);
+    app.use((req, res, next) => {
+      if (req.url.startsWith('/api/')) return next();
+      res.status(500).send('Error: frontend no construido.');
+    });
+  }
+}
+
+const PORT = process.env.PORT || 8080;
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`✅ Backend listo en http://localhost:${PORT}`);
-  console.log(`🌍 Origen permitido: ${FRONTEND_ORIGIN}`);
+  console.log(`✅ App corriendo en puerto ${PORT}`);
 });
