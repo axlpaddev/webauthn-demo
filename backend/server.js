@@ -26,47 +26,7 @@ const sendError = (res, status, message) => {
   return res.status(status).json({ error: message });
 };
 
-app.post('/generate-registration-options', (req, res) => {
-  try {
-    const { email } = req.body;
-    if (!email || typeof email !== 'string') {
-      return sendError(res, 400, 'Email válido es requerido');
-    }
 
-    const userId = uuidv4();
-    const options = generateRegistrationOptions({
-      rpName: 'Mi App Web',
-      rpID: 'axltest.dev',
-      userID: isoHelpers.fromUTF8String(userId),
-      userName: email,
-      timeout: 60000,
-      attestationType: 'none',
-      excludeCredentials: users.has(email)
-        ? users.get(email).devices.map(dev => ({
-            id: dev.credentialID,
-            type: 'public-key',
-          }))
-        : [],
-      authenticatorSelection: {
-        authenticatorAttachment: 'platform',
-        userVerification: 'required',
-        requireResidentKey: true,
-      },
-      supportedAlgorithmIDs: [-7, -257],
-    });
-
-    if (!users.has(email)) {
-      users.set(email, { id: userId, email, devices: [], currentChallenge: options.challenge });
-    } else {
-      users.get(email).currentChallenge = options.challenge;
-    }
-    console.log('🔍 Opciones generadas:', JSON.stringify(options, null, 2));
-    res.json(options);
-  } catch (err) {
-    console.error('💥 Error en /generate-registration-options:', err);
-    sendError(res, 500, 'Error interno al generar opciones');
-  }
-});
 
 app.post('/verify-registration', async (req, res) => {
   try {
