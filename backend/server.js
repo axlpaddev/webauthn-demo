@@ -26,7 +26,71 @@ const sendError = (res, status, message) => {
   return res.status(status).json({ error: message });
 };
 
+app.post('/generate-registration-options', (req, res) => {
+  try {
+    const { email } = req.body;
+    console.log('📧 Email recibido:', email);
+    
+    if (!email) {
+      return sendError(res, 400, 'Email requerido');
+    }
 
+    const userId = uuidv4();
+    console.log('🆕 UserID generado:', userId);
+    
+    // LOG TEMPORAL: Verificar todos los parámetros
+    console.log('🔧 Parámetros completos:', {
+      rpName: 'AxlTest App',
+      rpID: 'axltest.dev',
+      userID: `Uint8Array(${isoHelpers.fromUTF8String(userId).length} bytes)`,
+      userName: email,
+      userDisplayName: email,
+      timeout: 60000,
+      attestationType: 'none',
+      authenticatorSelection: {
+        userVerification: 'preferred',
+        residentKey: false
+      },
+      supportedAlgorithmIDs: [-7, -257],
+    });
+
+    // INTENTAR con configuración MÍNIMA
+    console.log('🚀 Llamando a generateRegistrationOptions...');
+    
+    const options = generateRegistrationOptions({
+      rpName: 'AxlTest App',
+      rpID: 'axltest.dev',
+      userID: isoHelpers.fromUTF8String(userId),
+      userName: email,
+      timeout: 60000,
+      attestationType: 'none',
+      // ELIMINAR temporalmente authenticatorSelection complejo
+    });
+
+    console.log('✅ Options recibidas:', typeof options);
+    console.log('✅ Challenge generado:', options.challenge);
+    console.log('✅ Opciones completas:', JSON.stringify(options, null, 2));
+
+    if (!options.challenge) {
+      throw new Error('generateRegistrationOptions devolvió challenge undefined');
+    }
+
+    // Guardar usuario
+    users.set(email, { 
+      id: userId, 
+      email, 
+      devices: [], 
+      currentChallenge: options.challenge 
+    });
+
+    res.json(options);
+  } catch (err) {
+    console.error('💥 Error CAPTURADO en generate-registration-options:');
+    console.error('💥 Mensaje:', err.message);
+    console.error('💥 Stack:', err.stack);
+    sendError(res, 500, `Error interno: ${err.message}`);
+  }
+});
 
 app.post('/verify-registration', async (req, res) => {
   try {
@@ -63,50 +127,7 @@ app.post('/verify-registration', async (req, res) => {
   }
 });
 
-app.post('/generate-registration-options', (req, res) => {
-  try {
-    const { email } = req.body;
-    console.log('📧 Email recibido:', email);
-    
-    if (!email) {
-      return sendError(res, 400, 'Email requerido');
-    }
 
-    const userId = uuidv4();
-    
-    // CONFIGURACIÓN MÍNIMA Y SEGURA
-    const options = generateRegistrationOptions({
-      rpName: 'AxlTest App',
-      rpID: 'axltest.dev',
-      userID: isoHelpers.fromUTF8String(userId),
-      userName: email,
-      userDisplayName: email,
-      timeout: 60000,
-      attestationType: 'none',
-      authenticatorSelection: {
-        userVerification: 'preferred',
-        residentKey: false
-      },
-      supportedAlgorithmIDs: [-7, -257],
-    });
-
-    console.log('✅ Challenge generado:', options.challenge);
-    console.log('✅ Opciones completas:', JSON.stringify(options, null, 2));
-
-    // Guardar usuario
-    users.set(email, { 
-      id: userId, 
-      email, 
-      devices: [], 
-      currentChallenge: options.challenge 
-    });
-
-    res.json(options);
-  } catch (err) {
-    console.error('💥 Error DETAILED:', err);
-    sendError(res, 500, `Error interno: ${err.message}`);
-  }
-});
 app.post('/verify-authentication', async (req, res) => {
   try {
     const { email, response } = req.body;
@@ -144,7 +165,34 @@ app.post('/verify-authentication', async (req, res) => {
     sendError(res, 500, 'Error al verificar autenticación');
   }
 });
+app.post('/generate-authentication-options', (req, res) => {
+  console.log('🔍 Origin recibido:', req.get('Origin'));
+  console.log('🔍 Host recibido:', req.get('Host'));
+  try {
+    const { email } = req.body;
+    if (!email) return sendError(res, 400, 'Email requerido');
+    const user = users.get(email);
+    if (!user || user.devices.length === 0) {
+      return sendError(res, 404, 'Usuario no registrado');
+    }
 
+    const options = generateAuthenticationOptions({
+      timeout: 60000,
+      userVerification: 'required',
+      allowCredentials: user.devices.map(dev => ({
+        id: dev.credentialID,
+        type: 'public-key',
+      })),
+      rpID: 'axltest.dev',
+    });
+
+    user.currentChallenge = options.challenge;
+    res.json(options);
+  } catch (err) {
+    console.error('💥 Error en /generate-authentication-options:', err);
+    sendError(res, 500, 'Error al generar desafío');
+  }
+});
 // Ruta de salud
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', time: new Date().toISOString() });
