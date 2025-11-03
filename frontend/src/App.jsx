@@ -4,9 +4,6 @@ import {
   startAuthentication,
 } from '@simplewebauthn/browser';
 
-// ✅ En producción, usamos rutas relativas (mismo dominio)
-//const API_URL = '/api';
-
 function App() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -32,60 +29,70 @@ function App() {
     checkWebAuthnSupport();
   }, []);
 
+  const isValidEmail = (str) => {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(str);
+  };
+
   const registerWebAuthn = async () => {
-  try {
-    // ✅ Validación y limpieza del email
     const cleanEmail = email.trim();
-    if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+    if (!cleanEmail || !isValidEmail(cleanEmail)) {
       setStatus('❌ Por favor ingresa un email válido');
       return;
     }
 
-    setStatus('1️⃣ Generando opciones de registro...');
-    const response = await fetch('/generate-registration-options', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: cleanEmail }), // ✅ usa el email limpio
-    });
-
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`HTTP ${response.status}: ${text.substring(0, 100)}`);
-    }
-
-    const regOptions = await response.json();
-    if (!regOptions.challenge) {
-      throw new Error('La respuesta no contiene "challenge"');
-    }
-
-    setStatus('2️⃣ Esperando autenticación biométrica...');
-    const regResponse = await startRegistration(regOptions);
-
-    setStatus('3️⃣ Verificando registro...');
-    const verifyRes = await fetch('/verify-registration', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: cleanEmail, response: regResponse }),
-    }).then(r => r.json());
-
-    if (verifyRes.verified) {
-      setStatus('✅ Registro biométrico exitoso!');
-    } else {
-      setStatus('❌ Verificación fallida');
-    }
-  } catch (err) {
-    console.error(err);
-    setStatus(`🚨 ERROR: ${err.message || 'Desconocido'}`);
-  }
-};
-
-  const loginWebAuthn = async () => {
     try {
-      setStatus('1️⃣ Generando desafío de autenticación...');
-      const response = await fetch(`/generate-authentication-options`, {
+      setStatus('1️⃣ Generando opciones de registro...');
+      const response = await fetch('/generate-registration-options', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email: cleanEmail }),
+      });
+
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`HTTP ${response.status}: ${text.substring(0, 100)}`);
+      }
+
+      const regOptions = await response.json();
+      if (!regOptions.challenge) {
+        console.error('Respuesta sin challenge:', regOptions);
+        throw new Error('La respuesta no contiene "challenge"');
+      }
+
+      setStatus('2️⃣ Esperando autenticación biométrica...');
+      const regResponse = await startRegistration(regOptions);
+
+      setStatus('3️⃣ Verificando registro...');
+      const verifyRes = await fetch('/verify-registration', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: cleanEmail, response: regResponse }),
+      }).then(r => r.json());
+
+      if (verifyRes.verified) {
+        setStatus('✅ Registro biométrico exitoso!');
+      } else {
+        setStatus('❌ Verificación fallida');
+      }
+    } catch (err) {
+      console.error('Error en registro biométrico:', err);
+      setStatus(`🚨 ERROR: ${err.message || 'Desconocido'}`);
+    }
+  };
+
+  const loginWebAuthn = async () => {
+    const cleanEmail = email.trim();
+    if (!cleanEmail || !isValidEmail(cleanEmail)) {
+      setStatus('❌ Por favor ingresa un email válido');
+      return;
+    }
+
+    try {
+      setStatus('1️⃣ Generando desafío de autenticación...');
+      const response = await fetch('/generate-authentication-options', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: cleanEmail }),
       });
 
       if (!response.ok) {
@@ -102,19 +109,19 @@ function App() {
       const authResponse = await startAuthentication(authOptions);
 
       setStatus('3️⃣ Verificando...');
-      const verifyRes = await fetch(`/verify-authentication`, {
+      const verifyRes = await fetch('/verify-authentication', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, response: authResponse }),
+        body: JSON.stringify({ email: cleanEmail, response: authResponse }),
       }).then(r => r.json());
 
       if (verifyRes.verified) {
-        setStatus(`✅ Bienvenido, ${email}!`);
+        setStatus(`✅ Bienvenido, ${cleanEmail}!`);
       } else {
         setStatus('❌ Autenticación fallida');
       }
     } catch (err) {
-      console.error(err);
+      console.error('Error en autenticación biométrica:', err);
       setStatus(`🚨 ERROR: ${err.message || 'Desconocido'}`);
     }
   };
