@@ -14,7 +14,7 @@ const path = require('path');
 const fs = require('fs');
 
 const app = express();
-const FRONTEND_ORIGIN = 'https://webauthn-demo-ik4h.onrender.com';
+const FRONTEND_ORIGIN = 'https://axltest.dev';
 app.use(cors({ origin: FRONTEND_ORIGIN }));
 app.use(express.json({ limit: '10mb' }));
 
@@ -36,7 +36,7 @@ app.post('/generate-registration-options', (req, res) => {
     const userId = uuidv4();
     const options = generateRegistrationOptions({
       rpName: 'Mi App Web',
-      rpID: 'webauthn-demo-ik4h.onrender.com',
+      rpID: 'axltest.dev',
       userID: isoHelpers.fromUTF8String(userId),
       userName: email,
       timeout: 60000,
@@ -80,8 +80,8 @@ app.post('/verify-registration', async (req, res) => {
     const verification = await verifyRegistrationResponse({
       response,
       expectedChallenge,
-      expectedOrigin: 'https://webauthn-demo-ik4h.onrender.com',
-      expectedRPID: 'webauthn-demo-ik4h.onrender.com',
+      expectedOrigin: 'https://axltest.dev',
+      expectedRPID: 'axltest.dev',
       requireUserVerification: true,
     });
 
@@ -121,7 +121,7 @@ app.post('/generate-authentication-options', (req, res) => {
         id: dev.credentialID,
         type: 'public-key',
       })),
-      rpID: 'webauthn-demo-ik4h.onrender.com',
+      rpID: 'axltest.dev',
     });
 
     user.currentChallenge = options.challenge;
@@ -147,8 +147,8 @@ app.post('/verify-authentication', async (req, res) => {
     const verification = await verifyAuthenticationResponse({
       response,
       expectedChallenge,
-      expectedOrigin: 'https://webauthn-demo-ik4h.onrender.com',
-      expectedRPID: 'webauthn-demo-ik4h.onrender.com',
+      expectedOrigin: 'https://axltest.dev',
+      expectedRPID: 'axltest.dev',
       authenticator: {
         credentialID: device.credentialID,
         credentialPublicKey: device.credentialPublicKey,
