@@ -85,7 +85,7 @@ app.post('/generate-registration-options', (req, res) => {
       attestationType: 'none',
       authenticatorSelection: {
         userVerification: 'preferred',
-        residentKey: 'preferred'
+        residentKey: false
       },
       supportedAlgorithmIDs: [-7, -257],
     });
