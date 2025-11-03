@@ -5,7 +5,7 @@ import {
 } from '@simplewebauthn/browser';
 
 // ✅ En producción, usamos rutas relativas (mismo dominio)
-const API_URL = '/api';
+//const API_URL = '/api';
 
 function App() {
   const [email, setEmail] = useState('');
@@ -35,7 +35,7 @@ function App() {
   const registerWebAuthn = async () => {
     try {
       setStatus('1️⃣ Generando opciones de registro...');
-      const response = await fetch(`${API_URL}/generate-registration-options`, {
+      const response = await fetch(`/generate-registration-options`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
@@ -55,7 +55,7 @@ function App() {
       const regResponse = await startRegistration(regOptions);
 
       setStatus('3️⃣ Verificando registro...');
-      const verifyRes = await fetch(`${API_URL}/verify-registration`, {
+      const verifyRes = await fetch(`/verify-registration`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, response: regResponse }),
@@ -75,7 +75,7 @@ function App() {
   const loginWebAuthn = async () => {
     try {
       setStatus('1️⃣ Generando desafío de autenticación...');
-      const response = await fetch(`${API_URL}/generate-authentication-options`, {
+      const response = await fetch(`/generate-authentication-options`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
@@ -95,7 +95,7 @@ function App() {
       const authResponse = await startAuthentication(authOptions);
 
       setStatus('3️⃣ Verificando...');
-      const verifyRes = await fetch(`${API_URL}/verify-authentication`, {
+      const verifyRes = await fetch(`/verify-authentication`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, response: authResponse }),

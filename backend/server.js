@@ -175,6 +175,7 @@ app.get('/api/health', (req, res) => {
 });
 
 // === Servir frontend en producción ===
+// === Servir frontend en producción ===
 if (process.env.NODE_ENV === 'production') {
   const DIST_DIR = path.resolve(__dirname, '..', 'frontend', 'dist');
   const INDEX_FILE = path.join(DIST_DIR, 'index.html');
@@ -187,10 +188,17 @@ if (process.env.NODE_ENV === 'production') {
     console.log('✅ Carpeta dist encontrada. Sirviendo frontend estático.');
     app.use(express.static(DIST_DIR));
 
-    // Middleware de fallback: sirve index.html para cualquier ruta que no sea API
+    // Middleware de fallback (DEBE estar al final)
     app.use((req, res, next) => {
-      if (req.url.startsWith('/api/')) {
-        return next(); // deja que las rutas API fallen naturalmente
+      const apiRoutes = [
+        '/generate-registration-options',
+        '/verify-registration',
+        '/generate-authentication-options',
+        '/verify-authentication',
+        '/api/health'
+      ];
+      if (apiRoutes.some(route => req.url.startsWith(route))) {
+        return next(); // permite que Express responda 404 JSON si la ruta no existe
       }
       res.sendFile(INDEX_FILE, err => {
         if (err) {
@@ -202,7 +210,16 @@ if (process.env.NODE_ENV === 'production') {
   } else {
     console.error('❌ ERROR: Carpeta dist NO encontrada en:', DIST_DIR);
     app.use((req, res, next) => {
-      if (req.url.startsWith('/api/')) return next();
+      const apiRoutes = [
+        '/generate-registration-options',
+        '/verify-registration',
+        '/generate-authentication-options',
+        '/verify-authentication',
+        '/api/health'
+      ];
+      if (apiRoutes.some(route => req.url.startsWith(route))) {
+        return next();
+      }
       res.status(500).send('Error: frontend no construido.');
     });
   }
