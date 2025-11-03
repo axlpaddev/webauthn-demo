@@ -78,7 +78,7 @@ app.post('/generate-registration-options', (req, res) => {
     const options = generateRegistrationOptions({
       rpName: 'AxlTest App',
       rpID: 'axltest.dev',
-      userID: userId,
+      userID: isoHelpers.fromUTF8String(userId),
       userName: email,
       userDisplayName: email,
       timeout: 60000,
