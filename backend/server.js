@@ -60,7 +60,7 @@ app.post('/generate-registration-options', (req, res) => {
     } else {
       users.get(email).currentChallenge = options.challenge;
     }
-
+    console.log('🔍 Opciones generadas:', JSON.stringify(options, null, 2));
     res.json(options);
   } catch (err) {
     console.error('💥 Error en /generate-registration-options:', err);
