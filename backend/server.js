@@ -37,42 +37,25 @@ app.post('/generate-registration-options', (req, res) => {
 
     const userId = uuidv4();
     console.log('🆕 UserID generado:', userId);
-    
-    // LOG TEMPORAL: Verificar todos los parámetros
-    console.log('🔧 Parámetros completos:', {
-      rpName: 'AxlTest App',
-      rpID: 'axltest.dev',
-      userID: `Uint8Array(${isoHelpers.fromUTF8String(userId).length} bytes)`,
-      userName: email,
-      userDisplayName: email,
-      timeout: 60000,
-      attestationType: 'none',
-      authenticatorSelection: {
-        userVerification: 'preferred',
-        residentKey: false
-      },
-      supportedAlgorithmIDs: [-7, -257],
-    });
 
-    // INTENTAR con configuración MÍNIMA
-    console.log('🚀 Llamando a generateRegistrationOptions...');
+    // CONFIGURACIÓN MÍNIMA ABSOLUTA - SIN parámetros opcionales
+    console.log('🚀 Llamando a generateRegistrationOptions con configuración mínima...');
     
     const options = generateRegistrationOptions({
       rpName: 'AxlTest App',
       rpID: 'axltest.dev',
       userID: isoHelpers.fromUTF8String(userId),
       userName: email,
-      timeout: 60000,
-      attestationType: 'none',
-      // ELIMINAR temporalmente authenticatorSelection complejo
+      // ELIMINAR TODOS los parámetros opcionales temporalmente
     });
 
-    console.log('✅ Options recibidas:', typeof options);
+    console.log('✅ Options recibidas:', options);
     console.log('✅ Challenge generado:', options.challenge);
-    console.log('✅ Opciones completas:', JSON.stringify(options, null, 2));
+    console.log('✅ ¿Tiene challenge?:', !!options.challenge);
 
     if (!options.challenge) {
-      throw new Error('generateRegistrationOptions devolvió challenge undefined');
+      console.error('❌ generateRegistrationOptions devolvió objeto vacío o sin challenge');
+      throw new Error('La librería WebAuthn devolvió objeto vacío - verificar configuración');
     }
 
     // Guardar usuario
@@ -83,6 +66,7 @@ app.post('/generate-registration-options', (req, res) => {
       currentChallenge: options.challenge 
     });
 
+    console.log('🎉 ÉXITO: Opciones generadas correctamente');
     res.json(options);
   } catch (err) {
     console.error('💥 Error CAPTURADO en generate-registration-options:');
@@ -91,7 +75,6 @@ app.post('/generate-registration-options', (req, res) => {
     sendError(res, 500, `Error interno: ${err.message}`);
   }
 });
-
 app.post('/verify-registration', async (req, res) => {
   try {
     const { email, response } = req.body;
