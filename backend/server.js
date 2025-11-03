@@ -103,35 +103,50 @@ app.post('/verify-registration', async (req, res) => {
   }
 });
 
-app.post('/generate-authentication-options', (req, res) => {
-  console.log('🔍 Origin recibido:', req.get('Origin'));
-  console.log('🔍 Host recibido:', req.get('Host'));
+app.post('/generate-registration-options', (req, res) => {
   try {
     const { email } = req.body;
-    if (!email) return sendError(res, 400, 'Email requerido');
-    const user = users.get(email);
-    if (!user || user.devices.length === 0) {
-      return sendError(res, 404, 'Usuario no registrado');
+    console.log('📧 Email recibido:', email);
+    
+    if (!email) {
+      return sendError(res, 400, 'Email requerido');
     }
 
-    const options = generateAuthenticationOptions({
-      timeout: 60000,
-      userVerification: 'required',
-      allowCredentials: user.devices.map(dev => ({
-        id: dev.credentialID,
-        type: 'public-key',
-      })),
+    const userId = uuidv4();
+    
+    // CONFIGURACIÓN MÍNIMA Y SEGURA
+    const options = generateRegistrationOptions({
+      rpName: 'AxlTest App',
       rpID: 'axltest.dev',
+      userID: userId,
+      userName: email,
+      userDisplayName: email,
+      timeout: 60000,
+      attestationType: 'none',
+      authenticatorSelection: {
+        userVerification: 'preferred',
+        residentKey: 'preferred'
+      },
+      supportedAlgorithmIDs: [-7, -257],
     });
 
-    user.currentChallenge = options.challenge;
+    console.log('✅ Challenge generado:', options.challenge);
+    console.log('✅ Opciones completas:', JSON.stringify(options, null, 2));
+
+    // Guardar usuario
+    users.set(email, { 
+      id: userId, 
+      email, 
+      devices: [], 
+      currentChallenge: options.challenge 
+    });
+
     res.json(options);
   } catch (err) {
-    console.error('💥 Error en /generate-authentication-options:', err);
-    sendError(res, 500, 'Error al generar desafío');
+    console.error('💥 Error DETAILED:', err);
+    sendError(res, 500, `Error interno: ${err.message}`);
   }
 });
-
 app.post('/verify-authentication', async (req, res) => {
   try {
     const { email, response } = req.body;
