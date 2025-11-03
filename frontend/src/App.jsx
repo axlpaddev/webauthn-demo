@@ -33,44 +33,51 @@ function App() {
   }, []);
 
   const registerWebAuthn = async () => {
-    try {
-      setStatus('1️⃣ Generando opciones de registro...');
-      const response = await fetch(`/generate-registration-options`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
-      });
-
-      if (!response.ok) {
-        const text = await response.text();
-        throw new Error(`HTTP ${response.status}: ${text.substring(0, 100)}`);
-      }
-
-      const regOptions = await response.json();
-      if (!regOptions.challenge) {
-        throw new Error('La respuesta no contiene "challenge"');
-      }
-
-      setStatus('2️⃣ Esperando autenticación biométrica...');
-      const regResponse = await startRegistration(regOptions);
-
-      setStatus('3️⃣ Verificando registro...');
-      const verifyRes = await fetch(`/verify-registration`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, response: regResponse }),
-      }).then(r => r.json());
-
-      if (verifyRes.verified) {
-        setStatus('✅ Registro biométrico exitoso!');
-      } else {
-        setStatus('❌ Verificación fallida');
-      }
-    } catch (err) {
-      console.error(err);
-      setStatus(`🚨 ERROR: ${err.message || 'Desconocido'}`);
+  try {
+    // ✅ Validación y limpieza del email
+    const cleanEmail = email.trim();
+    if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+      setStatus('❌ Por favor ingresa un email válido');
+      return;
     }
-  };
+
+    setStatus('1️⃣ Generando opciones de registro...');
+    const response = await fetch('/generate-registration-options', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: cleanEmail }), // ✅ usa el email limpio
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`HTTP ${response.status}: ${text.substring(0, 100)}`);
+    }
+
+    const regOptions = await response.json();
+    if (!regOptions.challenge) {
+      throw new Error('La respuesta no contiene "challenge"');
+    }
+
+    setStatus('2️⃣ Esperando autenticación biométrica...');
+    const regResponse = await startRegistration(regOptions);
+
+    setStatus('3️⃣ Verificando registro...');
+    const verifyRes = await fetch('/verify-registration', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: cleanEmail, response: regResponse }),
+    }).then(r => r.json());
+
+    if (verifyRes.verified) {
+      setStatus('✅ Registro biométrico exitoso!');
+    } else {
+      setStatus('❌ Verificación fallida');
+    }
+  } catch (err) {
+    console.error(err);
+    setStatus(`🚨 ERROR: ${err.message || 'Desconocido'}`);
+  }
+};
 
   const loginWebAuthn = async () => {
     try {
