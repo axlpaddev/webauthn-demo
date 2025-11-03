@@ -14,7 +14,6 @@ const path = require('path');
 const fs = require('fs');
 
 const app = express();
-
 const FRONTEND_ORIGIN = 'https://axltest.lat';
 app.use(cors({ origin: FRONTEND_ORIGIN }));
 app.use(express.json({ limit: '10mb' }));
@@ -105,6 +104,8 @@ app.post('/verify-registration', async (req, res) => {
 });
 
 app.post('/generate-authentication-options', (req, res) => {
+  console.log('🔍 Origin recibido:', req.get('Origin'));
+  console.log('🔍 Host recibido:', req.get('Host'));
   try {
     const { email } = req.body;
     if (!email) return sendError(res, 400, 'Email requerido');
