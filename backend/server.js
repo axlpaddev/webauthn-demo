@@ -26,7 +26,7 @@ const sendError = (res, status, message) => {
   return res.status(status).json({ error: message });
 };
 
-app.post('/generate-registration-options', (req, res) => {
+app.post('/generate-registration-options', async (req, res) => {
   try {
     const { email } = req.body;
     console.log('📧 Email recibido:', email);
@@ -41,7 +41,7 @@ app.post('/generate-registration-options', (req, res) => {
     // CONFIGURACIÓN MÍNIMA ABSOLUTA - SIN parámetros opcionales
     console.log('🚀 Llamando a generateRegistrationOptions con configuración mínima...');
     
-    const options = generateRegistrationOptions({
+    const options = await generateRegistrationOptions({
       rpName: 'AxlTest App',
       rpID: 'axltest.dev',
       userID: isoHelpers.fromUTF8String(userId),
@@ -148,7 +148,7 @@ app.post('/verify-authentication', async (req, res) => {
     sendError(res, 500, 'Error al verificar autenticación');
   }
 });
-app.post('/generate-authentication-options', (req, res) => {
+app.post('/generate-authentication-options', async (req, res) => {
   console.log('🔍 Origin recibido:', req.get('Origin'));
   console.log('🔍 Host recibido:', req.get('Host'));
   try {
@@ -159,7 +159,7 @@ app.post('/generate-authentication-options', (req, res) => {
       return sendError(res, 404, 'Usuario no registrado');
     }
 
-    const options = generateAuthenticationOptions({
+    const options =  await generateAuthenticationOptions({
       timeout: 60000,
       userVerification: 'required',
       allowCredentials: user.devices.map(dev => ({
