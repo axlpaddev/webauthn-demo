@@ -1,4 +1,3 @@
-// backend/server.js
 const express = require('express');
 const cors = require('cors');
 const { v4: uuidv4 } = require('uuid');
@@ -7,13 +6,13 @@ const {
   generateAuthenticationOptions,
   verifyRegistrationResponse,
   verifyAuthenticationResponse,
-  isoUint8Array,
 } = require('@simplewebauthn/server');
-const { isoBase64URL } = require('@simplewebauthn/server/helpers');
-//const { isoUint8Array: isoHelpers } = require('@simplewebauthn/server/helpers');
+const { 
+  isoUint8Array,
+  isoBase64URL 
+} = require('@simplewebauthn/server/helpers');
 const path = require('path');
 const fs = require('fs');
-
 const app = express();
 const FRONTEND_ORIGIN = 'https://axltest.dev';
 app.use(cors({ origin: FRONTEND_ORIGIN }));
@@ -45,7 +44,7 @@ app.post('/generate-registration-options', async (req, res) => {
     const options = await generateRegistrationOptions({
       rpName: 'AxlTest App',
       rpID: 'axltest.dev',
-      userID: isoHelpers.fromUTF8String(userId),
+      userID: isoUint8Array.fromUTF8String(userId)(userId),
       userName: email,
       // ELIMINAR TODOS los parámetros opcionales temporalmente
     });
