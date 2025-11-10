@@ -13,6 +13,7 @@ const {
 } = require('@simplewebauthn/server/helpers');
 const path = require('path');
 const fs = require('fs');
+
 const app = express();
 const FRONTEND_ORIGIN = 'https://axltest.dev';
 app.use(cors({ origin: FRONTEND_ORIGIN }));
@@ -38,15 +39,13 @@ app.post('/generate-registration-options', async (req, res) => {
     const userId = uuidv4();
     console.log('🆕 UserID generado:', userId);
 
-    // CONFIGURACIÓN MÍNIMA ABSOLUTA - SIN parámetros opcionales
-    console.log('🚀 Llamando a generateRegistrationOptions con configuración mínima...');
+    console.log('🚀 Llamando a generateRegistrationOptions...');
     
     const options = await generateRegistrationOptions({
       rpName: 'AxlTest App',
       rpID: 'axltest.dev',
-      userID: isoUint8Array.fromUTF8String(userId)(userId),
+      userID: isoUint8Array.fromString(userId), // ← MÉTODO CORRECTO v13.x
       userName: email,
-      // ELIMINAR TODOS los parámetros opcionales temporalmente
     });
 
     console.log('✅ Options recibidas:', options);
@@ -55,10 +54,9 @@ app.post('/generate-registration-options', async (req, res) => {
 
     if (!options.challenge) {
       console.error('❌ generateRegistrationOptions devolvió objeto vacío o sin challenge');
-      throw new Error('La librería WebAuthn devolvió objeto vacío - verificar configuración');
+      throw new Error('La librería WebAuthn devolvió objeto vacío');
     }
 
-    // Guardar usuario
     users.set(email, { 
       id: userId, 
       email, 
@@ -97,16 +95,16 @@ app.post('/verify-registration', async (req, res) => {
     if (verification.verified && verification.registrationInfo) {
       const { credentialID, credentialPublicKey, counter } = verification.registrationInfo;
       
-      // ✅ CORREGIDO: Convertir credentialID a Base64 para autenticación
+      // ✅ MÉTODOS CORRECTOS v13.x
       user.devices.push({
-        credentialID:isoBase64URL.fromBuffer(credentialID), // ← corregido isoBase64URL.fromBuffer por nombre de metodo en la version
-        credentialPublicKey: credentialPublicKey, // 
+        credentialID: isoBase64URL.fromBuffer(credentialID),
+        credentialPublicKey: credentialPublicKey,
         counter,
       });
       
       delete user.currentChallenge;
       console.log('✅ Registro verificado correctamente para:', email);
-      console.log('📝 Credencial guardada (Base64):', isoBase64URL.fromBuffer(credentialID));
+      console.log('📝 Credencial guardada:', isoBase64URL.fromBuffer(credentialID));
       res.json({ verified: true });
     } else {
       console.error('❌ Verificación fallida:', verification);
@@ -117,6 +115,7 @@ app.post('/verify-registration', async (req, res) => {
     sendError(res, 500, 'Error al verificar registro');
   }
 });
+
 app.post('/generate-authentication-options', async (req, res) => {
   console.log('🔍 Origin recibido:', req.get('Origin'));
   console.log('🔍 Host recibido:', req.get('Host'));
@@ -169,7 +168,6 @@ app.post('/verify-authentication', async (req, res) => {
     console.log('🔍 Response ID:', response.id);
     console.log('🔍 Credenciales guardadas:', user.devices.map(d => d.credentialID));
 
-    // ✅ CORREGIDO: Comparar Base64 strings
     const device = user.devices.find(d => d.credentialID === response.id);
     
     if (!device) {
@@ -185,7 +183,7 @@ app.post('/verify-authentication', async (req, res) => {
       expectedOrigin: 'https://axltest.dev',
       expectedRPID: 'axltest.dev',
       authenticator: {
-        credentialID: isoBase64URL.toBuffer(device.credentialID), // ← cambiado de isoUint8Array a isohelpers
+        credentialID: isoBase64URL.toBuffer(device.credentialID),
         credentialPublicKey: device.credentialPublicKey,
         counter: device.counter,
       },
