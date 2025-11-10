@@ -126,15 +126,17 @@ app.post('/verify-authentication', async (req, res) => {
     const expectedChallenge = user.currentChallenge;
     if (!expectedChallenge) return sendError(res, 400, 'No hay desafío');
 
-    // ✅ CORREGIDO: Comparar Uint8Arrays directamente
-    const device = user.devices.find(d => {
-      const storedID = new Uint8Array(d.credentialID);
-      const responseID = new Uint8Array(response.id);
-      return storedID.length === responseID.length && 
-             storedID.every((val, idx) => val === responseID[idx]);
-    });
+    console.log('🔍 Buscando dispositivo para autenticación...');
+
+    // ✅ CORREGIDO: Comparar Base64 strings
+    const device = user.devices.find(d => d.credentialID === response.id);
     
-    if (!device) return sendError(res, 400, 'Dispositivo desconocido');
+    if (!device) {
+      console.error('❌ Dispositivo no encontrado. Credenciales guardadas:', user.devices.map(d => d.credentialID));
+      return sendError(res, 400, 'Dispositivo desconocido');
+    }
+
+    console.log('✅ Dispositivo encontrado, verificando...');
 
     const verification = await verifyAuthenticationResponse({
       response,
@@ -142,7 +144,7 @@ app.post('/verify-authentication', async (req, res) => {
       expectedOrigin: 'https://axltest.dev',
       expectedRPID: 'axltest.dev',
       authenticator: {
-        credentialID: device.credentialID,
+        credentialID: isoUint8Array.fromBase64(device.credentialID), // ← Convertir de Base64 a Uint8Array
         credentialPublicKey: device.credentialPublicKey,
         counter: device.counter,
       },
@@ -152,8 +154,10 @@ app.post('/verify-authentication', async (req, res) => {
     if (verification.verified) {
       device.counter = verification.authenticationInfo.newCounter;
       delete user.currentChallenge;
+      console.log('✅ Autenticación exitosa para:', email);
       res.json({ verified: true, user: { email } });
     } else {
+      console.error('❌ Autenticación fallida:', verification);
       sendError(res, 400, 'Autenticación fallida');
     }
   } catch (err) {
@@ -168,21 +172,32 @@ app.post('/generate-authentication-options', async (req, res) => {
     const { email } = req.body;
     if (!email) return sendError(res, 400, 'Email requerido');
     const user = users.get(email);
+    
+    console.log('👤 Usuario encontrado:', user ? 'Sí' : 'No');
+    console.log('📱 Dispositivos registrados:', user ? user.devices.length : 0);
+    
     if (!user || user.devices.length === 0) {
       return sendError(res, 404, 'Usuario no registrado');
     }
 
-    const options =  await generateAuthenticationOptions({
+    // ✅ CORREGIDO: Pasar credentialID ya en Base64
+    const allowCredentials = user.devices.map(dev => ({
+      id: dev.credentialID, // Ya está en Base64
+      type: 'public-key',
+      transports: ['internal'], // ← Agregar transports para mejor compatibilidad
+    }));
+
+    console.log('🔑 Credenciales permitidas:', allowCredentials);
+
+    const options = await generateAuthenticationOptions({
       timeout: 60000,
       userVerification: 'required',
-      allowCredentials: user.devices.map(dev => ({
-        id: dev.credentialID,
-        type: 'public-key',
-      })),
+      allowCredentials,
       rpID: 'axltest.dev',
     });
 
     user.currentChallenge = options.challenge;
+    console.log('✅ Opciones de autenticación generadas');
     res.json(options);
   } catch (err) {
     console.error('💥 Error en /generate-authentication-options:', err);
