@@ -99,14 +99,14 @@ app.post('/verify-registration', async (req, res) => {
       
       // ✅ CORREGIDO: Convertir credentialID a Base64 para autenticación
       user.devices.push({
-        credentialID: isoUint8Array.toBase64URL(credentialID), // ← CONVERTIR a Base64
+        credentialID: isoHelpers.toBase64URL(credentialID), // ← CONVERTIR a Base64URL y cambio a isoHelpers
         credentialPublicKey: credentialPublicKey, // Mantener como Uint8Array
         counter,
       });
       
       delete user.currentChallenge;
       console.log('✅ Registro verificado correctamente para:', email);
-      console.log('📝 Credencial guardada (Base64):', isoUint8Array.toBase64URL(credentialID));
+      console.log('📝 Credencial guardada (Base64):', isoHelpers.toBase64URL(credentialID));
       res.json({ verified: true });
     } else {
       console.error('❌ Verificación fallida:', verification);
@@ -185,7 +185,7 @@ app.post('/verify-authentication', async (req, res) => {
       expectedOrigin: 'https://axltest.dev',
       expectedRPID: 'axltest.dev',
       authenticator: {
-        credentialID: isoUint8Array.fromBase64URL(device.credentialID), // ← Convertir de Base64URL
+        credentialID: isoHelpers.fromBase64URL(device.credentialID), // ← cambiado de isoUint8Array a isohelpers
         credentialPublicKey: device.credentialPublicKey,
         counter: device.counter,
       },
