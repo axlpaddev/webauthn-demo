@@ -92,16 +92,23 @@ app.post('/verify-registration', async (req, res) => {
       requireUserVerification: true,
     });
 
+    console.log('🔍 Verificación resultado:', verification);
+
     if (verification.verified && verification.registrationInfo) {
       const { credentialID, credentialPublicKey, counter } = verification.registrationInfo;
+      
+      // ✅ CORREGIDO: Guardar como Uint8Array en lugar de Buffer
       user.devices.push({
-        credentialID: isoUint8Array.toBuffer(credentialID),
-        credentialPublicKey: isoUint8Array.toBuffer(credentialPublicKey),
+        credentialID: credentialID, // Ya es Uint8Array
+        credentialPublicKey: credentialPublicKey, // Ya es Uint8Array  
         counter,
       });
+      
       delete user.currentChallenge;
+      console.log('✅ Registro verificado correctamente para:', email);
       res.json({ verified: true });
     } else {
+      console.error('❌ Verificación fallida:', verification);
       sendError(res, 400, 'Verificación fallida');
     }
   } catch (err) {
@@ -109,7 +116,6 @@ app.post('/verify-registration', async (req, res) => {
     sendError(res, 500, 'Error al verificar registro');
   }
 });
-
 
 app.post('/verify-authentication', async (req, res) => {
   try {
@@ -120,7 +126,14 @@ app.post('/verify-authentication', async (req, res) => {
     const expectedChallenge = user.currentChallenge;
     if (!expectedChallenge) return sendError(res, 400, 'No hay desafío');
 
-    const device = user.devices.find(d => Buffer.compare(d.credentialID, response.id) === 0);
+    // ✅ CORREGIDO: Comparar Uint8Arrays directamente
+    const device = user.devices.find(d => {
+      const storedID = new Uint8Array(d.credentialID);
+      const responseID = new Uint8Array(response.id);
+      return storedID.length === responseID.length && 
+             storedID.every((val, idx) => val === responseID[idx]);
+    });
+    
     if (!device) return sendError(res, 400, 'Dispositivo desconocido');
 
     const verification = await verifyAuthenticationResponse({
