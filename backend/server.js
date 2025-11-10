@@ -9,7 +9,8 @@ const {
   verifyAuthenticationResponse,
   isoUint8Array,
 } = require('@simplewebauthn/server');
-const { isoUint8Array: isoHelpers } = require('@simplewebauthn/server/helpers');
+const { isoBase64URL } = require('@simplewebauthn/server/helpers');
+//const { isoUint8Array: isoHelpers } = require('@simplewebauthn/server/helpers');
 const path = require('path');
 const fs = require('fs');
 
@@ -99,14 +100,14 @@ app.post('/verify-registration', async (req, res) => {
       
       // ✅ CORREGIDO: Convertir credentialID a Base64 para autenticación
       user.devices.push({
-        credentialID: isoHelpers.toBase64URL(credentialID), // ← CONVERTIR a Base64URL y cambio a isoHelpers
-        credentialPublicKey: credentialPublicKey, // Mantener como Uint8Array
+        credentialID:isoBase64URL.fromBuffer(credentialID), // ← corregido isoBase64URL.fromBuffer por nombre de metodo en la version
+        credentialPublicKey: credentialPublicKey, // 
         counter,
       });
       
       delete user.currentChallenge;
       console.log('✅ Registro verificado correctamente para:', email);
-      console.log('📝 Credencial guardada (Base64):', isoHelpers.toBase64URL(credentialID));
+      console.log('📝 Credencial guardada (Base64):', isoBase64URL.fromBuffer(credentialID));
       res.json({ verified: true });
     } else {
       console.error('❌ Verificación fallida:', verification);
@@ -185,7 +186,7 @@ app.post('/verify-authentication', async (req, res) => {
       expectedOrigin: 'https://axltest.dev',
       expectedRPID: 'axltest.dev',
       authenticator: {
-        credentialID: isoHelpers.fromBase64URL(device.credentialID), // ← cambiado de isoUint8Array a isohelpers
+        credentialID: isoBase64URL.toBuffer(device.credentialID), // ← cambiado de isoUint8Array a isohelpers
         credentialPublicKey: device.credentialPublicKey,
         counter: device.counter,
       },
