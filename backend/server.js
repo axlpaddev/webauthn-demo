@@ -97,15 +97,16 @@ app.post('/verify-registration', async (req, res) => {
     if (verification.verified && verification.registrationInfo) {
       const { credentialID, credentialPublicKey, counter } = verification.registrationInfo;
       
-      // ✅ CORREGIDO: Guardar como Uint8Array en lugar de Buffer
+      // ✅ CORREGIDO: Convertir credentialID a Base64 para autenticación
       user.devices.push({
-        credentialID: credentialID, // Ya es Uint8Array
-        credentialPublicKey: credentialPublicKey, // Ya es Uint8Array  
+        credentialID: isoUint8Array.toBase64URL(credentialID), // ← CONVERTIR a Base64
+        credentialPublicKey: credentialPublicKey, // Mantener como Uint8Array
         counter,
       });
       
       delete user.currentChallenge;
       console.log('✅ Registro verificado correctamente para:', email);
+      console.log('📝 Credencial guardada (Base64):', isoUint8Array.toBase64URL(credentialID));
       res.json({ verified: true });
     } else {
       console.error('❌ Verificación fallida:', verification);
@@ -114,55 +115,6 @@ app.post('/verify-registration', async (req, res) => {
   } catch (err) {
     console.error('💥 Error en /verify-registration:', err);
     sendError(res, 500, 'Error al verificar registro');
-  }
-});
-
-app.post('/verify-authentication', async (req, res) => {
-  try {
-    const { email, response } = req.body;
-    if (!email || !response) return sendError(res, 400, 'Faltan datos');
-    const user = users.get(email);
-    if (!user) return sendError(res, 404, 'Usuario no encontrado');
-    const expectedChallenge = user.currentChallenge;
-    if (!expectedChallenge) return sendError(res, 400, 'No hay desafío');
-
-    console.log('🔍 Buscando dispositivo para autenticación...');
-
-    // ✅ CORREGIDO: Comparar Base64 strings
-    const device = user.devices.find(d => d.credentialID === response.id);
-    
-    if (!device) {
-      console.error('❌ Dispositivo no encontrado. Credenciales guardadas:', user.devices.map(d => d.credentialID));
-      return sendError(res, 400, 'Dispositivo desconocido');
-    }
-
-    console.log('✅ Dispositivo encontrado, verificando...');
-
-    const verification = await verifyAuthenticationResponse({
-      response,
-      expectedChallenge,
-      expectedOrigin: 'https://axltest.dev',
-      expectedRPID: 'axltest.dev',
-      authenticator: {
-        credentialID: isoUint8Array.fromBase64(device.credentialID), // ← Convertir de Base64 a Uint8Array
-        credentialPublicKey: device.credentialPublicKey,
-        counter: device.counter,
-      },
-      requireUserVerification: true,
-    });
-
-    if (verification.verified) {
-      device.counter = verification.authenticationInfo.newCounter;
-      delete user.currentChallenge;
-      console.log('✅ Autenticación exitosa para:', email);
-      res.json({ verified: true, user: { email } });
-    } else {
-      console.error('❌ Autenticación fallida:', verification);
-      sendError(res, 400, 'Autenticación fallida');
-    }
-  } catch (err) {
-    console.error('💥 Error en /verify-authentication:', err);
-    sendError(res, 500, 'Error al verificar autenticación');
   }
 });
 app.post('/generate-authentication-options', async (req, res) => {
@@ -202,6 +154,56 @@ app.post('/generate-authentication-options', async (req, res) => {
   } catch (err) {
     console.error('💥 Error en /generate-authentication-options:', err);
     sendError(res, 500, 'Error al generar desafío');
+  }
+});
+app.post('/verify-authentication', async (req, res) => {
+  try {
+    const { email, response } = req.body;
+    if (!email || !response) return sendError(res, 400, 'Faltan datos');
+    const user = users.get(email);
+    if (!user) return sendError(res, 404, 'Usuario no encontrado');
+    const expectedChallenge = user.currentChallenge;
+    if (!expectedChallenge) return sendError(res, 400, 'No hay desafío');
+
+    console.log('🔍 Buscando dispositivo para autenticación...');
+    console.log('🔍 Response ID:', response.id);
+    console.log('🔍 Credenciales guardadas:', user.devices.map(d => d.credentialID));
+
+    // ✅ CORREGIDO: Comparar Base64 strings
+    const device = user.devices.find(d => d.credentialID === response.id);
+    
+    if (!device) {
+      console.error('❌ Dispositivo no encontrado');
+      return sendError(res, 400, 'Dispositivo desconocido');
+    }
+
+    console.log('✅ Dispositivo encontrado, verificando...');
+
+    const verification = await verifyAuthenticationResponse({
+      response,
+      expectedChallenge,
+      expectedOrigin: 'https://axltest.dev',
+      expectedRPID: 'axltest.dev',
+      authenticator: {
+        credentialID: isoUint8Array.fromBase64URL(device.credentialID), // ← Convertir de Base64URL
+        credentialPublicKey: device.credentialPublicKey,
+        counter: device.counter,
+      },
+      requireUserVerification: true,
+    });
+
+    if (verification.verified) {
+      device.counter = verification.authenticationInfo.newCounter;
+      delete user.currentChallenge;
+      console.log('✅ Autenticación exitosa para:', email);
+      res.json({ verified: true, user: { email } });
+    } else {
+      console.error('❌ Autenticación fallida:', verification);
+      sendError(res, 400, 'Autenticación fallida');
+    }
+  } catch (err) {
+    console.error('💥 Error en /verify-authentication:', err);
+    sendError(res, 500, 'Error al verificar autenticación');
   }
 });
 // Ruta de salud
