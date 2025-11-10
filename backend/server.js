@@ -112,14 +112,22 @@ app.post('/verify-registration', async (req, res) => {
 app.post('/generate-authentication-options', async (req, res) => {
   try {
     const { email } = req.body;
-    if (!email) return sendError(res, 400, 'Email requerido');
+    console.log(`📧 Email recibido para auth: ${email}`);
+    
+    // SOLO esta línea - usando Map.get()
     const user = users.get(email);
     
-    console.log('👤 Usuario:', user ? 'Sí' : 'No');
-    console.log('📱 Dispositivos:', user ? user.devices.length : 0);
+    if (!user) {
+      console.log('❌ Usuario no encontrado para auth');
+      return res.status(404).json({ error: 'Usuario no registrado' });
+    }
     
-    if (!user || user.devices.length === 0) {
-      return sendError(res, 404, 'Usuario no registrado');
+    console.log(`👤 Usuario encontrado: ${user.email}`);
+    console.log(`📱 Dispositivos registrados: ${user.devices.length}`);
+    
+    // Esta validación extra por seguridad
+    if (user.devices.length === 0) {
+      return res.status(404).json({ error: 'Usuario no tiene dispositivos registrados' });
     }
 
     const allowCredentials = user.devices.map(dev => ({
@@ -140,10 +148,9 @@ app.post('/generate-authentication-options', async (req, res) => {
     res.json(options);
   } catch (err) {
     console.error('💥 Error:', err);
-    sendError(res, 500, 'Error al generar desafío');
+    res.status(500).json({ error: 'Error al generar desafío' });
   }
 });
-
 app.post('/verify-authentication', async (req, res) => {
   try {
     const { email, response } = req.body;
